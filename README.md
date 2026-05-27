@@ -257,15 +257,67 @@ Images are deskewed, contrast-enhanced, and sharpened server-side before being s
 
 ---
 
-## Binding Constraints Handled
+## Handling the Binding Constraints
 
-| Constraint | How |
-|------------|-----|
-| Offline capture | IndexedDB queue in browser — saves upload to local DB when offline, auto-syncs on reconnect |
-| Duplicate prevention | Perceptual hash (pHash) computed on upload, compared against all existing captures — exact and near-duplicate detection |
-| Full audit trail | Append-only `capture_events` table — every field edit and status change is immutable and timestamped |
-| Low-confidence flagging | Per-field confidence score from GPT — colour coded in UI (green ≥ 85%, yellow 60-85%, red < 60%) |
-| Image quality | Sharp preprocessing pipeline runs before OCR — deskew, contrast normalisation, sharpening |
+**Mobile-first capture.** The capture surface is a PWA — no app store, works on any Android browser. The UI is a single large camera button with a file upload fallback. No jargon, no forms, no navigation. The field worker sees one thing: take a photo. Status updates (queued / uploading / processing / done) are displayed in large text with high contrast so they're readable in sunlight.
+
+**Intermittent connectivity.** Uploads that fail due to no internet are saved to IndexedDB in the browser before attempting the network request. On reconnect, the offline sync hook automatically retries all pending uploads in order. The field worker never sees a failed upload — they see a "queued" status that resolves itself. This is treated as a first-class flow, not a fallback.
+
+**Audit trail.** The `capture_events` table is append-only. No field in the system is ever overwritten silently — every correction writes a new event row with the old value, new value, reviewer ID, actor type (human/system), and timestamp. The schema separates current state (`captures`, `capture_fields`) from full history (`capture_events`). The review interface shows the complete event timeline per capture. A registry audit months later can reconstruct exactly what the OCR said, what a reviewer changed, and when.
+
+**Confidence must be visible.** Confidence is per field, not per document. Each field in the review interface is colour-coded: green (≥ 85%), yellow (60–85%), red (< 60%). The reviewer's eye goes to red fields first. There is no green tick on everything — if GPT is uncertain about a value, it says so and the UI shows it. Confidence scores are also stored in `capture_fields` so they are part of the permanent audit record, not just a UI decoration.
+
+---
+
+## Capability Picks
+
+### 1. Background Job Queues — Bucket 1 (Reliability)
+
+**Why:** OCR takes 10–30 seconds per document. A synchronous request on a 2G connection in a Gujarat village will time out more often than it succeeds. The queue decouples upload from processing — upload returns immediately, processing happens in the background via Bull and Redis.
+
+**Impact on the system:** This shaped the entire capture flow: upload → acknowledge → queue → process → notify. Retry logic lives in the worker, not the API. The dashboard polls for status rather than blocking on a request. If OCR fails, the job retries automatically without the user doing anything. Without this pick, a single slow OCR call would block the upload endpoint for every concurrent user.
+
+**What I rejected:** Synchronous processing with a long timeout. Simple to build, but fundamentally incompatible with the mobile and connectivity constraints. A field worker on 2G cannot hold a connection open for 30 seconds.
+
+---
+
+### 2. OCR Confidence Scoring — Bucket 2 (OCR Quality)
+
+**Why:** Without per-field confidence, a reviewer manually checks every field of every capture. With it, they focus on red fields and trust green ones. In a system where a misread tonnage figure affects how many credits get issued, this is the mechanism that makes review workable — not a quality-of-life add-on.
+
+**Impact on the system:** Scores drive colour-coding in the review interface, determine queue sort order (lowest confidence first), and are recorded in the audit log so you can see if a high-confidence field was later corrected by a human. The review interface is shaped around this — without confidence scores, the split-screen layout loses its purpose.
+
+**What I rejected:** Document-level confidence. A single score per document masks individual field errors — a document can have four perfect fields and one badly misread weight. Per-field is the only granularity that is actionable for a reviewer.
+
+---
+
+### 3. Duplicate Detection — Bucket 3 (Discovery)
+
+**Why:** Submitting the same weighbridge slip twice isn't a data quality issue — it's potentially fraudulent double-counting. Field workers in low-connectivity areas often upload the same slip multiple times unsure if the first went through. Without detection, both entries can get approved and both sets of credits get claimed.
+
+**Impact on the system:** Every upload triggers a perceptual hash check before entering the processing queue. A near-duplicate surfaces in a `possible_duplicate` state and requires explicit reviewer action. Added a `possible_duplicate` state to the capture status flow and a `duplicate_check` event to the audit log. Without this, the queue has no way to distinguish a retry from a second document.
+
+**What I rejected:** Vector search for semantic duplicate detection — more powerful but requires embedding infrastructure and adds latency to every upload. Perceptual hashing catches the actual risk (same physical document photographed twice) without that overhead.
+
+---
+
+### 4. Human-in-the-Loop Workflows — Bucket 4 (User Experience)
+
+**Why:** OCR will make mistakes on real field photos. Full automation isn't safe in a context where a wrong number affects carbon credit issuance. But manual review of every field of every capture doesn't scale. The structured workflow surfaces uncertain captures to reviewers and lets clear ones move faster.
+
+**Impact on the system:** The entire review interface exists because of this pick. The status flow (pending → processing → needs_review → approved/rejected/escalated) is a direct expression of it. The escalate action lets reviewers flag captures for a second opinion without blocking the queue. Without this pick, the system has no structured handoff between machine extraction and human verification.
+
+**What I rejected:** Fully automated approval above a confidence threshold. Simpler to implement, but harder to defend to a registry auditor than a human-reviewed record. In a carbon credit context, the audit trail needs a named human approver on every capture.
+
+---
+
+### 5. Audit Logs — Wildcard
+
+**Why:** A carbon credit registry audit can happen months after the data was collected. Without an append-only event log, you only have the current state of the data — the history is gone. In this context that is a compliance failure, not a minor inconvenience.
+
+**Impact on the system:** Every mutation goes through an event write before hitting the database. No direct field overwrites anywhere in the codebase. The schema has two parts: a `captures` table (current state) and a `capture_events` table (full history). The review interface shows the event timeline per capture. This pick made the schema more complex but non-negotiable given the MRV context.
+
+**What I rejected:** Field-level versioning on the capture record itself — storing previous values in the same row. This only tracks the last change. An event log retains every state transition in order, which is what a real audit requires.
 
 ---
 
