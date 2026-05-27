@@ -268,15 +268,17 @@ Images are deskewed, contrast-enhanced, and sharpened server-side before being s
 
 ## Sample Test Images
 
-Located in `test-images/`:
+Located in `test-images/`. Mix of clean and difficult cases as required.
 
-| File | Type | Purpose |
-|------|------|---------|
-| `weighbridge-filled.jpeg` | weighbridge_slip | Clean case — printed slip with all fields |
-| `weighbridge-blank.jpeg` | weighbridge_slip | Low-confidence case — blank template |
-| `dispatch-challan.webp` | dispatch_challan | Printed logistics document |
-| `handwritten-notebook.jpeg` | other | Baseline handwritten document |
-| `handwritten-blurry.jpeg` | other | Hard case — blurry + partial occlusion |
+| File | Classified As | What the system does | In scope? |
+|------|--------------|----------------------|-----------|
+| `weighbridge-filled.jpeg` | `weighbridge_slip` | Clean printed slip — all fields (weight, vehicle no, date) extracted with high confidence (green). Best-case scenario. | ✅ Yes |
+| `weighbridge-blank-template.jpeg` | `weighbridge_slip` | Blank form with no filled values — GPT extracts field names but returns empty/low-confidence values. Tests graceful handling of missing data. | ✅ Yes |
+| `dispatch-challan-printed.webp` | `dispatch_challan` | Printed logistics payment challan — date and driver name extract correctly. Vehicle number may differ from expected GJ format (Nagaland RTO in this sample). Moisture field not present — GPT correctly omits it. | ✅ Yes |
+| `handwritten-notebook-clean.jpeg` | `other` | Handwritten biomass purchase notebook — all 5 fields extracted correctly at high confidence. Used as the primary demo document throughout development. | ✅ Yes |
+| `handwritten-notebook-blurry-occluded.jpeg` | `other` | Same document type but blurry with partial finger occlusion — confidence drops to yellow/red on several fields. Reviewer is prompted to manually verify. Tests the low-confidence escalation flow. | ✅ Yes — hard case |
+
+**Note:** Documents not in scope for v1 — multi-page PDFs, moisture meter LCD screen photos, and documents with non-Latin scripts beyond Hindi/English. These would require additional preprocessing and prompt tuning.
 
 ---
 
