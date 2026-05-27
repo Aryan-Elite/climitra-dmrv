@@ -4,6 +4,16 @@ A mobile-first document digitisation system for carbon credit verification. Fiel
 
 ---
 
+## Screenshots
+
+**Dispatch Challan — extracted fields with confidence scores**
+![Dispatch Challan Review](docs/dispatch-challan-review.png)
+
+**Handwritten Notebook — OCR extraction + audit trail**
+![Handwritten Document Review](docs/handwritten-review.png)
+
+---
+
 ## What It Does
 
 | Role | Flow |
