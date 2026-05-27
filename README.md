@@ -203,6 +203,13 @@ cd frontend && npm run dev
 
 Open `http://localhost:3000` → login → start reviewing.
 
+### Test Credentials
+
+| Role | Email | Password | Access |
+|------|-------|----------|--------|
+| Reviewer (HQ) | `reviewer@climitra.com` | `password123` | Dashboard, Review Queue, Search |
+| Field Worker | `ram@climitra.com` | `password123` | Capture page only |
+
 ---
 
 ## Key Decisions & Tradeoffs
