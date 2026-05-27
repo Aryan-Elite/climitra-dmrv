@@ -15,6 +15,9 @@ A mobile-first document digitisation system for carbon credit verification. Fiel
 **Audit Trail — append-only log of every field correction made by reviewer**
 ![Audit Trail with Field Corrections](docs/audit-trail-field-corrections.png)
 
+**Blank Weighbridge Template — GPT classifies document type but extracts no field values (no hallucination)**
+![Blank Weighbridge No Hallucination](docs/blank-weighbridge-no-hallucination.png)
+
 ---
 
 ## What It Does
@@ -273,7 +276,7 @@ Located in `test-images/`. Mix of clean and difficult cases as required.
 | File | Classified As | What the system does | In scope? |
 |------|--------------|----------------------|-----------|
 | `weighbridge-filled.jpeg` | `weighbridge_slip` | Clean printed slip — all fields (weight, vehicle no, date) extracted with high confidence (green). Best-case scenario. | ✅ Yes |
-| `weighbridge-blank-template.jpeg` | `weighbridge_slip` | Blank form with no filled values — GPT extracts field names but returns empty/low-confidence values. Tests graceful handling of missing data. | ✅ Yes |
+| `weighbridge-blank-template.jpeg` | `weighbridge_slip` | Blank Gopal Computerised Weighbridge form — no values filled in. GPT correctly classifies document type at 80% confidence but extracts zero field values. Demonstrates the system does not hallucinate data when fields are genuinely absent. Screenshot: `docs/blank-weighbridge-no-hallucination.png` | ✅ Yes |
 | `dispatch-challan-printed.webp` | `dispatch_challan` | Printed logistics payment challan — date and driver name extract correctly. Vehicle number may differ from expected GJ format (Nagaland RTO in this sample). Moisture field not present — GPT correctly omits it. | ✅ Yes |
 | `handwritten-notebook-clean.jpeg` | `other` | Handwritten biomass purchase notebook — all 5 fields extracted correctly at high confidence. Used as the primary demo document throughout development. | ✅ Yes |
 | `handwritten-notebook-blurry-occluded.jpeg` | `other` | Same document type but blurry with partial finger occlusion — confidence drops to yellow/red on several fields. Reviewer is prompted to manually verify. Tests the low-confidence escalation flow. | ✅ Yes — hard case |
